@@ -357,3 +357,6 @@ A coleção `produtos` na base de dados `ecommerce_db` armazena documentos JSON 
 
 - **Walterlim Trajano** — *Modelação MongoDB & Ecrã do Catálogo*
 - Repositório: [walterlimtrajano/ProjetoNosql](https://github.com/walterlimtrajano/ProjetoNosql)
+
+- **Lucas Holanda** - *Modelação Neo4j, Scripts Cypher & Documentação em Grafo*
+- Repositório: [Holandaz1/ProjetoNosql](https://github.com/walterlimtrajano/ProjetoNosql) 
