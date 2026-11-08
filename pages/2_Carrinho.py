@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from pymongo import MongoClient
 
 import redis_service as rs
-from auth_ui import render_sidebar_auth
+from interface import render_sidebar_auth
 
 load_dotenv()
 st.set_page_config(page_title="Carrinho | NoSQL E-Commerce", layout="wide")

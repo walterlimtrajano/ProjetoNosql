@@ -5,3 +5,17 @@ services:
   mongo:
     image: mongo:7
     ports: ["27017:27017"]
+
+  neo4j:
+    image: neo4j:5
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: "${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:?Configure NEO4J_PASSWORD no arquivo .env}"
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+
+volumes:
+  neo4j_data:

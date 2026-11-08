@@ -13,6 +13,12 @@
 ```text
 ProjetoNosql/
 ├── app_catalogo_mongodb.py   # Aplicação Streamlit e script de seed do MongoDB
+├── neo4j_service.py          # Serviço Neo4j e dados de exemplo do grafo
+├── redis_service.py          # Sessões, carrinho e cache Redis
+├── interface.py              # Autenticação compartilhada na barra lateral
+├── pages/
+│   ├── 2_Carrinho.py         # Ecrã 2: carrinho ativo
+│   └── 3_Recomendacoes.py    # Ecrã 3: recomendações Neo4j
 ├── requirements.txt          # Dependências do projeto Python
 ├── .env                      # Variáveis de ambiente (não commitado)
 ├── .env.example              # Exemplo de configuração das variáveis de ambiente
@@ -69,12 +75,26 @@ Copie o arquivo `.env.example` para `.env`:
 ```bash
 cp .env.example .env
 ```
+Preencha também `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD` e
+`NEO4J_DATABASE` com os dados do Neo4j local ou AuraDB. Não compartilhe nem
+versione o arquivo `.env`.
 
-### 5. Executar a Aplicação Streamlit
+### 5. Inicializar o grafo e executar a aplicação
+Com o Neo4j disponível e as variáveis configuradas, crie os dados de exemplo
+(incluindo compras compartilhadas para demonstrar recomendações):
+```bash
+python neo4j_service.py
+```
+
+Inicie o Streamlit:
 ```bash
 streamlit run app_catalogo_mongodb.py
 ```
 A aplicação abrirá automaticamente no seu navegador padrão no endereço: `http://localhost:8501`.
+Use o menu de páginas do Streamlit e abra **3 Recomendações**. A tela usa os
+produtos no carrinho Redis como contexto inicial; também permite selecionar
+outros produtos do catálogo. O Neo4j retorna itens comprados por clientes que
+compraram os mesmos produtos, ordenados pelo número de clientes semelhantes.
 
 ---
 

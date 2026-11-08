@@ -8,11 +8,11 @@ Modelagem das chaves (Redis = chave-valor / in-memory):
   cart:{user_id}      HASH   {produto_id: quantidade}          (TTL = CART_TTL)
   cache:{nome}        STRING JSON                              (TTL = CACHE_TTL)
 """
-import os
 import json
 import hmac
 import hashlib
 import secrets
+import os
 
 import redis
 from dotenv import load_dotenv
