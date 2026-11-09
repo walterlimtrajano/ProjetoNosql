@@ -3,8 +3,10 @@
 ## 📌 Escopo do Módulo (Walterlim Trajano)
 
 - **Modelagem NoSQL (MongoDB):** Estruturação flexível em JSON para persistência do catálogo de produtos, suportando subdocumentos/objetos aninhados (`especificacoes`) e listas (`categorias`, `imagens`).
-- **Otimização de Consultas:** Criação de índices de texto (`TEXT index`) nos campos `nome`, `descricao` e `marca` para busca por palavra-chave de alta performance.
-- **Interface Gráfica (Streamlit):** Construção da interface visual interativa conectada em tempo real à leitura dos dados no MongoDB, com suporte a filtros dinâmicos (categorias, marcas, faixa de preço e busca textual).
+- **Otimização de Consultas:** Criação de índices de texto (`TEXT index`) nos campos `nome`, `descricao` e `marca` para busca por palavra-chave em alta performance.
+- **Gestão de Sessão e Carrinho (Redis):** Armazenamento de sessões de usuário, itens do carrinho e cache com TTL para reduzir latência e melhorar o comportamento da aplicação.
+- **Recomendações em Grafo (Neo4j):** Conexões entre clientes e produtos para recomendar itens com base em compras semelhantes e comportamento de usuários.
+- **Interface Gráfica (Streamlit):** Construção de uma interface interativa conectada em tempo real aos dados em MongoDB, Redis e Neo4j, com filtros dinâmicos, busca textual e navegação por páginas.
 
 ---
 
@@ -12,18 +14,23 @@
 
 ```text
 ProjetoNosql/
-├── app_catalogo_mongodb.py   # Aplicação Streamlit e script de seed do MongoDB
+├── app_catalogo_mongodb.py   # Aplicação principal em Streamlit e seed do MongoDB
 ├── neo4j_service.py          # Serviço Neo4j e dados de exemplo do grafo
-├── redis_service.py          # Sessões, carrinho e cache Redis
+├── redis_service.py          # Sessões, carrinho e cache em Redis
 ├── interface.py              # Autenticação compartilhada na barra lateral
 ├── pages/
-│   ├── 2_Carrinho.py         # Ecrã 2: carrinho ativo
-│   └── 3_Recomendacoes.py    # Ecrã 3: recomendações Neo4j
+│   ├── 2_Carrinho.py        # Ecrã 2: carrinho ativo
+│   └── 3_Recomendacoes.py   # Ecrã 3: recomendações Neo4j
+├── docs/                    # Documentação complementar do projeto
+├── docker-compose.yml        # Serviços locais de Redis, MongoDB e Neo4j
 ├── requirements.txt          # Dependências do projeto Python
-├── .env                      # Variáveis de ambiente (não commitado)
-├── .env.example              # Exemplo de configuração das variáveis de ambiente
-├── .gitignore                # Arquivos ignorados pelo Git
-└── README.md                 # Documentação do projeto
+├── .env                     # Variáveis de ambiente locais (não commitado)
+├── .env.example             # Exemplo de configuração das variáveis de ambiente
+├── .gitignore               # Arquivos ignorados pelo Git
+├── README.md                # Documentação do projeto
+├── inicializaçao redis.py   # Script auxiliar para inicialização do Redis
+├── .venv                    # Ambiente virtual local (opcional)
+└── __pycache__/             # Arquivos temporários do Python
 ```
 
 ---
@@ -32,7 +39,11 @@ ProjetoNosql/
 
 Certifique-se de ter instalado em sua máquina:
 - **Python 3.10+**
-- **MongoDB Server** (rodando localmente na porta `27017` ou via Docker / MongoDB Atlas)
+- **Docker Desktop** ou **Docker Compose**
+- **MongoDB** (localmente ou em container)
+- **Redis** (localmente ou em container)
+- **Neo4j** (localmente ou em container)
+- **Git**
 - **MongoDB Compass** (opcional, para inspeção visual dos documentos e coleções)
 
 ---
@@ -56,7 +67,7 @@ cd ProjetoNosql
 - **No Windows (PowerShell):**
   ```powershell
   python -m venv venv
-  . env\Scripts\Activate.ps1
+  .\venv\Scripts\Activate.ps1
   ```
 
 - **No Linux/macOS:**
@@ -72,29 +83,66 @@ pip install -r requirements.txt
 
 ### 4. Configurar as Variáveis de Ambiente
 Copie o arquivo `.env.example` para `.env`:
+
 ```bash
 cp .env.example .env
 ```
-Preencha também `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD` e
-`NEO4J_DATABASE` com os dados do Neo4j local ou AuraDB. Não compartilhe nem
-versione o arquivo `.env`.
 
-### 5. Inicializar o grafo e executar a aplicação
-Com o Neo4j disponível e as variáveis configuradas, crie os dados de exemplo
-(incluindo compras compartilhadas para demonstrar recomendações):
+No Windows PowerShell:
+```powershell
+Copy-Item .env.example .env
+```
+
+O arquivo `.env` deve conter, no mínimo, as seguintes variáveis:
+
+```env
+MONGO_URI=mongodb://localhost:27017/
+DB_NAME=ecommerce_db
+COLLECTION_NAME=produtos
+
+NEO4J_URI=neo4j://localhost:7687
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=sua_senha
+NEO4J_DATABASE=neo4j
+
+STREAMLIT_SERVER_PORT=8501
+STREAMLIT_SERVER_ADDRESS=localhost
+```
+
+> Não compartilhe nem versionie o arquivo `.env`.
+
+### 5. Subir os serviços com Docker (opcional, mas recomendado)
+No diretório do projeto:
+
+```bash
+docker compose up -d
+```
+
+Isso inicia:
+- **Redis** na porta `6379`
+- **MongoDB** na porta `27017`
+- **Neo4j** nas portas `7474` e `7687`
+
+### 6. Inicializar o grafo e executar a aplicação
+Com o Neo4j disponível e as variáveis configuradas, crie os dados de exemplo do grafo:
+
 ```bash
 python neo4j_service.py
 ```
 
-Inicie o Streamlit:
+Em seguida, inicie o Streamlit:
+
 ```bash
 streamlit run app_catalogo_mongodb.py
 ```
-A aplicação abrirá automaticamente no seu navegador padrão no endereço: `http://localhost:8501`.
-Use o menu de páginas do Streamlit e abra **3 Recomendações**. A tela usa os
-produtos no carrinho Redis como contexto inicial; também permite selecionar
-outros produtos do catálogo. O Neo4j retorna itens comprados por clientes que
-compraram os mesmos produtos, ordenados pelo número de clientes semelhantes.
+
+A aplicação abrirá automaticamente no navegador em:
+
+```text
+http://localhost:8501
+```
+
+Use o menu de páginas do Streamlit e abra **3 Recomendações**. A tela usa os produtos no carrinho Redis como contexto inicial; também permite selecionar outros produtos do catálogo.
 
 ---
 
@@ -342,14 +390,110 @@ A coleção `produtos` na base de dados `ecommerce_db` armazena documentos JSON 
 }
 ```
 
+A aplicação cria automaticamente um índice de texto para melhorar a busca por palavra-chave:
+
+```python
+collection.create_index([("nome", TEXT), ("descricao", TEXT), ("marca", TEXT)])
+```
+
+Esse índice é usado para pesquisas rápidas em campos relevantes do catálogo.
+
+---
+
+## 🧠 Modelagem de Dados no Redis
+
+O Redis é usado para dados que exigem baixa latência e expiração automática:
+
+- **Sessões de usuário**: token de autenticação com TTL deslizante
+- **Carrinho de compras**: produtos e quantidades por usuário
+- **Cache**: armazenamento temporário de resultados repetidos
+
+Exemplo de chaves:
+
+```text
+user:{email}        HASH   nome, salt, senha_hash
+session:{token}     HASH   user_id, nome
+cart:{user_id}      HASH   produto_id -> quantidade
+cache:{nome}        STRING JSON
+```
+
+---
+
+## 🕸️ Modelagem de Dados no Neo4j
+
+O Neo4j armazena relacionamentos entre clientes e produtos para gerar recomendações com base em compras semelhantes.
+
+Estrutura de exemplo:
+
+```text
+(:Cliente)-[:COMPROU]->(:Produto)
+(:Produto)-[:PERTENCE_A]->(:Categoria)
+```
+
+O algoritmo trabalha com a ideia de: "clientes que compraram os mesmos produtos também costumam comprar outros itens do mesmo catálogo".
+
+---
+
+## 🖥️ Funcionalidades da Interface
+
+A aplicação principal em Streamlit oferece:
+
+- filtro por categoria
+- filtro por marca
+- faixa de preço
+- busca textual por nome, marca ou descrição
+- visualização de imagens e detalhes do produto
+- botão para adicionar ao carrinho
+- acesso às páginas de carrinho e recomendações
+
+---
+
+## 🔍 Fluxo de Uso
+
+### Catálogo MongoDB
+- A página principal carrega produtos do MongoDB
+- Aplica filtros e busca textual
+- Exibe informações do produto e imagens
+
+### Carrinho e sessão em Redis
+- O login e a sessão são gerenciados no Redis
+- O carrinho do usuário é persistido com TTL
+- A aplicação usa cache para evitar processamento redundante
+
+### Recomendações com Neo4j
+- A página de recomendações considera os produtos selecionados e os itens do carrinho
+- Compara clientes com histórico semelhante
+- Retorna produtos mais relevantes, ordenados por afinidade
+
 ---
 
 ## 🛠️ Tecnologias Utilizadas
 
-- **[Python](https://www.python.org/)** — Linguagem principal
-- **[Streamlit](https://streamlit.io/)** — Framework para interface web interativa
-- **[PyMongo](https://pymongo.readthedocs.io/)** — Driver oficial de integração Python-MongoDB
-- **[MongoDB](https://www.mongodb.com/)** — Banco de dados NoSQL orientado a documentos
+- **Python 3.10+**
+- **MongoDB** — banco de dados NoSQL orientado a documentos
+- **Redis** — armazenamento em memória para sessão, carrinho e cache
+- **Neo4j** — banco de dados orientado a grafos para recomendações
+- **Streamlit** — construção da interface web interativa
+- **PyMongo** — driver oficial para integração com MongoDB
+- **redis-py** — cliente Python para Redis
+- **Neo4j Python Driver** — conexão e consultas ao Neo4j
+- **python-dotenv** — carregamento de variáveis de ambiente
+- **Docker / Docker Compose** — orquestração de serviços locais
+
+---
+
+## 🛠️ Comandos Úteis
+
+```bash
+# Iniciar os serviços de infraestrutura
+docker compose up -d
+
+# Popular dados iniciais no Neo4j
+python neo4j_service.py
+
+# Rodar a aplicação
+streamlit run app_catalogo_mongodb.py
+```
 
 ---
 
