@@ -518,13 +518,16 @@ streamlit run app_catalogo_mongodb.py
 
 ---
 
-## 👨‍💻 Autor
+## 👥 Equipe / Autores
 
 - **Walterlim Trajano** — *Modelação MongoDB & Ecrã do Catálogo*
 - Repositório: [walterlimtrajano/ProjetoNosql](https://github.com/walterlimtrajano/ProjetoNosql)
 
-- **Lucas Holanda** - *Modelação Neo4j, Scripts Cypher & Documentação em Grafo*
+- **Lucas Holanda** — *Modelação Neo4j, Scripts Cypher & Documentação em Grafo*
 - Repositório: [Holandaz1/ProjetoNosql](https://github.com/walterlimtrajano/ProjetoNosql)
 
-- **Daniel Leite** - *Motor de Recomendação, Consultas Cypher & Ecrã de Recomendações em Streamlit*
+- **Daniel Leite** — *Motor de Recomendação, Consultas Cypher & Ecrã de Recomendações em Streamlit*
 - Repositório: [TR014777/ProjetoNosql](https://github.com/walterlimtrajano/ProjetoNosql)
+
+- **Lucas Henrique** — *Integração de Cache (Redis), Cache Invalidation (TTL), Ranking de Mais Acessados (ZSET) & Testes Globais Polyglot*
+- Repositório: [lucashzz1/ProjetoNosql](https://github.com/walterlimtrajano/ProjetoNosql)
