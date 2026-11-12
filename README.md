@@ -14,12 +14,15 @@
 
 ```text
 ProjetoNosql/
-├── app_catalogo_mongodb.py   # Aplicação principal em Streamlit e seed do MongoDB
-├── neo4j_service.py          # Serviço Neo4j e dados de exemplo do grafo
-├── redis_service.py          # Sessões, carrinho e cache em Redis
+├── app_catalogo_mongodb.py   # Aplicação principal em Streamlit com Cache-Aside e Ranking
+├── neo4j_service.py          # Serviço Neo4j, consultas Cypher e registro de compras
+├── redis_service.py          # Sessões, carrinho, Cache com TTL, Invalidation e ZSET
 ├── interface.py              # Autenticação compartilhada na barra lateral
+├── benchmark_cache.py        # Benchmark de latência MongoDB vs Redis Cache
+├── tests/
+│   └── test_integracao_global.py # Suíte de testes automatizados Polyglot (pytest)
 ├── pages/
-│   ├── 2_Carrinho.py        # Ecrã 2: carrinho ativo
+│   ├── 2_Carrinho.py        # Ecrã 2: carrinho ativo e Checkout Polyglot
 │   └── 3_Recomendacoes.py   # Ecrã 3: recomendações Neo4j
 ├── docs/                    # Documentação complementar do projeto
 ├── docker-compose.yml        # Serviços locais de Redis, MongoDB e Neo4j
@@ -400,22 +403,31 @@ Esse índice é usado para pesquisas rápidas em campos relevantes do catálogo.
 
 ---
 
-## 🧠 Modelagem de Dados no Redis
+## 🧠 Modelagem de Dados no Redis & Camada de Cache
 
-O Redis é usado para dados que exigem baixa latência e expiração automática:
+O Redis é usado para dados que exigem altíssima performance em memória, baixa latência e expiração automática:
 
-- **Sessões de usuário**: token de autenticação com TTL deslizante
-- **Carrinho de compras**: produtos e quantidades por usuário
-- **Cache**: armazenamento temporário de resultados repetidos
+- **Sessões de usuário**: token de autenticação com TTL deslizante (`SESSION_TTL = 1800s`).
+- **Carrinho de compras dinâmico**: armazenamento em tempo real dos itens de cada usuário (`CART_TTL = 86400s`).
+- **Cache-Aside para Catálogo**: consultas de busca filtrada salvas com hash determinístico e TTL configurável (`CACHE_TTL = 300s`).
+- **Ranking de Mais Acessados**: contagem e ordenação em tempo real com Sorted Sets (ZSET).
+- **Cache Invalidation Ativa**: expurgo automático de consultas e detalhes de produto quando ocorre checkout ou alteração de estoque.
 
-Exemplo de chaves:
+Modelagem das chaves no Redis:
 
 ```text
-user:{email}        HASH   nome, salt, senha_hash
-session:{token}     HASH   user_id, nome
-cart:{user_id}      HASH   produto_id -> quantidade
-cache:{nome}        STRING JSON
+user:{email}                HASH   nome, salt, senha_hash            (persistente)
+session:{token}             HASH   user_id, nome                     (TTL deslizante = 30 min)
+cart:{user_id}              HASH   produto_id -> quantidade          (TTL = 24h)
+cache:busca:{hash_md5}      STRING JSON lista de produtos filtrados  (TTL = 5 min)
+cache:produto:{produto_id}  STRING JSON detalhes do produto          (TTL = 5 min)
+produtos:mais_acessados     ZSET   {produto_id: score_acessos}       (ZINCRBY / ZREVRANGE)
 ```
+
+### ⚡ Estratégias de Cache Invalidation (Invalidação de Cache)
+1. **Invalidação Temporal (TTL)**: Cada chave de busca e produto possui expiração automática, evitando consumo desnecessário de memória RAM.
+2. **Invalidação Ativa Orientada a Eventos**: Durante o **Checkout** ou alteração de estoque, as chaves `cache:busca:*` e a chave específica do produto `cache:produto:{id}` são invalidadas imediatamente para garantir consistência e evitar exibição de estoque obsoleto (*stale data*).
+3. **Invalidação Manual de Demonstração**: Disponível no painel interativo do Streamlit para testes ao vivo diante da banca examinadora.
 
 ---
 
@@ -485,13 +497,22 @@ A aplicação principal em Streamlit oferece:
 ## 🛠️ Comandos Úteis
 
 ```bash
-# Iniciar os serviços de infraestrutura
+# Iniciar os serviços de infraestrutura (MongoDB, Redis e Neo4j)
 docker compose up -d
 
 # Popular dados iniciais no Neo4j
 python neo4j_service.py
 
-# Rodar a aplicação
+# Inicializar usuários de teste no Redis
+python "inicializaçao redis.py"
+
+# Executar a suíte de Testes Globais Polyglot (pytest)
+python -m pytest -v tests/test_integracao_global.py
+
+# Executar o Benchmark de Latência (MongoDB vs Redis Cache)
+python benchmark_cache.py
+
+# Rodar a aplicação Streamlit
 streamlit run app_catalogo_mongodb.py
 ```
 

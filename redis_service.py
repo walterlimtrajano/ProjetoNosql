@@ -33,6 +33,9 @@ def k_user(email): return f"user:{email}"
 def k_session(token): return f"session:{token}"
 def k_cart(user_id): return f"cart:{user_id}"
 def k_cache(nome): return f"cache:{nome}"
+def k_cache_produto(pid): return f"cache:produto:{pid}"
+def k_cache_busca(hash_query): return f"cache:busca:{hash_query}"
+KEY_MAIS_ACESSADOS = "produtos:mais_acessados"
 
 
 # ---------- usuários e login ----------
@@ -155,3 +158,107 @@ def cache_set(nome: str, valor, ttl: int = CACHE_TTL) -> None:
 
 def cache_invalidar(nome: str) -> None:
     r.delete(k_cache(nome))
+
+
+# ---------- cache especializado para catálogo e busca (Cache-Aside + TTL) ----------
+def gerar_hash_busca(termo: str, categoria: str, marca: str, preco_max: float) -> str:
+    """Gera chave determinística MD5 para os parâmetros de busca."""
+    normalizado = f"{termo.strip().lower()}|{categoria.strip().lower()}|{marca.strip().lower()}|{float(preco_max):.2f}"
+    return hashlib.md5(normalizado.encode("utf-8")).hexdigest()
+
+
+def cache_busca_get(hash_query: str):
+    """
+    Retorna tupla (produtos, ttl_restante) ou (None, 0).
+    Aproveita resposta prévia no Redis com tempo de resposta em microssegundos.
+    """
+    key = k_cache_busca(hash_query)
+    valor = r.get(key)
+    if valor:
+        ttl = max(r.ttl(key), 0)
+        return json.loads(valor), ttl
+    return None, 0
+
+
+def cache_busca_set(hash_query: str, produtos: list, ttl: int = CACHE_TTL) -> None:
+    """Armazena o resultado de uma busca no Redis com TTL configurável."""
+    key = k_cache_busca(hash_query)
+    r.set(key, json.dumps(produtos, default=str), ex=ttl)
+
+
+# ---------- cache de produto individual ----------
+def cache_produto_get(produto_id: str):
+    """Retorna dados de um produto específico em cache ou None."""
+    key = k_cache_produto(produto_id)
+    valor = r.get(key)
+    return json.loads(valor) if valor else None
+
+
+def cache_produto_set(produto_id: str, produto: dict, ttl: int = CACHE_TTL) -> None:
+    """Salva detalhes do produto em cache individual com TTL."""
+    key = k_cache_produto(produto_id)
+    r.set(key, json.dumps(produto, default=str), ex=ttl)
+
+
+# ---------- produtos mais acessados (Sorted Set - ZSET) ----------
+def registrar_acesso_produto(produto_id: str) -> int:
+    """
+    Incrementa o contador de acessos do produto no Redis (ZSET).
+    Executa ZINCRBY O(log(N)) em memória para manter o ranking em tempo real.
+    """
+    if not produto_id:
+        return 0
+    return int(r.zincrby(KEY_MAIS_ACESSADOS, 1, str(produto_id)))
+
+
+def obter_produtos_mais_acessados(limite: int = 5) -> list:
+    """
+    Retorna lista de tuplas [(produto_id, score_acessos), ...] dos mais populares.
+    Usa ZREVRANGE para consulta de alto desempenho direto da RAM.
+    """
+    res = r.zrevrange(KEY_MAIS_ACESSADOS, 0, limite - 1, withscores=True)
+    return [(pid, int(score)) for pid, score in res]
+
+
+# ---------- lógicas de Cache Invalidation ----------
+def invalidar_caches_busca() -> int:
+    """
+    Invalida todas as consultas de catálogo salvas em cache.
+    Chamado após checkout, atualização de estoque ou modificação de produtos.
+    """
+    chaves = r.keys("cache:busca:*")
+    if chaves:
+        return r.delete(*chaves)
+    return 0
+
+
+def invalidar_cache_produto(produto_id: str) -> None:
+    """Invalida o cache específico de um produto que sofreu alteração."""
+    r.delete(k_cache_produto(produto_id))
+    r.delete(k_cache(f"produto:{produto_id}"))
+
+
+def invalidar_todo_cache() -> int:
+    """
+    Invalida todo o cache de busca e produtos (para testes e demonstração ao vivo).
+    """
+    chaves = r.keys("cache:*")
+    if chaves:
+        return r.delete(*chaves)
+    return 0
+
+
+def obter_estatisticas_cache() -> dict:
+    """Retorna métricas operacionais do Redis para o painel de monitoramento."""
+    chaves_busca = len(r.keys("cache:busca:*"))
+    chaves_produtos = len(r.keys("cache:produto:*") + r.keys("cache:produto*"))
+    total_mais_acessados = r.zcard(KEY_MAIS_ACESSADOS)
+    info = r.info("memory")
+    return {
+        "chaves_busca": chaves_busca,
+        "chaves_produtos": chaves_produtos,
+        "total_ranqueados": total_mais_acessados,
+        "memoria_usada_humana": info.get("used_memory_human", "N/A"),
+        "memoria_pico_humana": info.get("used_memory_peak_human", "N/A"),
+    }
+

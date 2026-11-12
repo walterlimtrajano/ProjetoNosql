@@ -48,6 +48,31 @@ class Neo4jECommerceService:
             session.run(query)
             print("Dados de grafos (nós e relacionamentos) inseridos com sucesso!")
 
+    def registrar_compra(self, cliente_nome: str, produtos_nomes: list, data: str = None):
+        """
+        Registra no grafo Neo4j que o cliente finalizou a compra de determinados produtos.
+        Cria/atualiza o nó (:Cliente) e o relacionamento [:COMPROU {data: ...}] para cada (:Produto).
+        """
+        import datetime
+        if not cliente_nome or not produtos_nomes:
+            return
+        data_compra = data or datetime.date.today().isoformat()
+        query = """
+        MERGE (c:Cliente {nome: $cliente_nome})
+        WITH c
+        UNWIND $produtos_nomes AS prod_nome
+        MERGE (p:Produto {nome: prod_nome})
+        MERGE (c)-[r:COMPROU]->(p)
+        SET r.data = $data_compra
+        """
+        with self.driver.session(database=self.database) as session:
+            session.run(
+                query,
+                cliente_nome=cliente_nome,
+                produtos_nomes=produtos_nomes,
+                data_compra=data_compra,
+            )
+
     def recomendar_produtos(self, produtos_base, limite=10):
         """Retorna itens comprados por clientes que também compraram os itens base."""
         # Aceitando um produto ou uma lista de produtos
