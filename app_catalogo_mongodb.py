@@ -276,16 +276,13 @@ def popular_banco_se_vazio():
     ]
     collection.insert_many(produtos_exemplo)
 
-# Popula o catálogo automaticamente no primeiro arranque
 popular_banco_se_vazio()
 
-# Barra lateral de autenticação e sessão do usuário (Redis)
 sessao = render_sidebar_auth()
 
 st.title("Catálogo & Busca de Produtos")
 st.caption("Ecrã 1 — Polyglot Persistence: MongoDB (Catálogo JSON Flexível) + Redis (Cache-Aside com TTL & Ranking)")
 
-# ----------------- FILTROS DE BUSCA -----------------
 st.sidebar.markdown("---")
 st.sidebar.header("Filtros de Busca")
 
@@ -297,7 +294,6 @@ categoria_selecionada = st.sidebar.selectbox("Filtrar por Categoria:", ["Todas"]
 marca_selecionada = st.sidebar.selectbox("Filtrar por Marca:", ["Todas"] + marcas_unicas)
 faixa_preco = st.sidebar.slider("Preço Máximo (R$):", min_value=0.0, max_value=30000.0, value=30000.0, step=500.0)
 
-# Monta query do MongoDB
 query = {"ativo": True}
 if busca_texto.strip():
     query["$text"] = {"$search": busca_texto}
@@ -308,11 +304,8 @@ if marca_selecionada != "Todas":
 if faixa_preco < 30000.0:
     query["preco"] = {"$lte": faixa_preco}
 
-# ----------------- CAMADA DE CACHE (CACHE-ASIDE + TTL) -----------------
-# 1. Gera chave única da busca
 hash_busca = rs.gerar_hash_busca(busca_texto, categoria_selecionada, marca_selecionada, faixa_preco)
 
-# 2. Tenta recuperar do Redis (Cache-Aside)
 t_inicio = time.perf_counter()
 produtos_em_cache, ttl_restante = rs.cache_busca_get(hash_busca)
 tempo_busca_ms = (time.perf_counter() - t_inicio) * 1000
@@ -321,7 +314,6 @@ if produtos_em_cache is not None:
     produtos = produtos_em_cache
     origem = "REDIS_HIT"
 else:
-    # 3. Cache Miss: Busca no MongoDB e serializa
     t_mongo_inicio = time.perf_counter()
     cursor = collection.find(query)
     produtos_raw = list(cursor)
@@ -332,15 +324,12 @@ else:
         item = dict(doc)
         item["_id"] = str(item["_id"])
         produtos.append(item)
-        # Salva o produto individualmente no cache com TTL
         rs.cache_produto_set(item["_id"], item, ttl=rs.CACHE_TTL)
     
-    # Armazena o resultado da busca no Redis com TTL configurável
     rs.cache_busca_set(hash_busca, produtos, ttl=rs.CACHE_TTL)
     origem = "MONGO_MISS"
     ttl_restante = rs.CACHE_TTL
 
-# ----------------- INDICADOR VISUAL DE CACHE / LATÊNCIA -----------------
 m_col1, m_col2, m_col3 = st.columns([2, 1, 1])
 with m_col1:
     if origem == "REDIS_HIT":
@@ -352,14 +341,12 @@ with m_col2:
 with m_col3:
     st.metric("Itens Encontrados", len(produtos))
 
-# ----------------- PRODUTOS MAIS ACESSADOS (REDIS ZSET) -----------------
 top_acessados = rs.obter_produtos_mais_acessados(limite=4)
 if top_acessados:
     with st.expander("🔥 **Produtos Mais Acessados em Tempo Real (Ranking Redis ZSET)**", expanded=False):
         st.caption("Estatística de alta frequência mantida em memória via `ZINCRBY` / `ZREVRANGE`. Responde consultas instantaneamente.")
         cols_top = st.columns(len(top_acessados))
         for idx_top, (p_id, qtd_acessos) in enumerate(top_acessados):
-            # Busca primeiro no cache individual do produto
             p_dados = rs.cache_produto_get(p_id)
             if not p_dados:
                 try:
@@ -378,7 +365,6 @@ if top_acessados:
                 else:
                     st.write(f"ID: {p_id[:8]}... ({qtd_acessos} acessos)")
 
-# ----------------- GRADE DE PRODUTOS -----------------
 if not produtos:
     st.warning("Nenhum produto encontrado com os filtros selecionados.")
 else:
@@ -410,9 +396,7 @@ else:
                         for k, v in specs.items():
                             st.markdown(f"- **{k.replace('_', ' ').capitalize()}:** {v}")
 
-                # Botão de adicionar ao carrinho conectado ao Redis
                 if st.button("Adicionar ao Carrinho", key=f"add_{prod_id}", disabled=(estoque_qtd <= 0)):
-                    # 1. Registra acesso no Redis (ZSET de mais acessados)
                     rs.registrar_acesso_produto(prod_id)
                     
                     if not sessao:
@@ -422,7 +406,6 @@ else:
                         st.toast(f"'{prod.get('nome')}' adicionado! Total no carrinho: {nova_qtd}", icon="🛒")
                         st.rerun()
 
-# ----------------- PAINEL DE MONITORAMENTO E INVALIDAÇÃO DE CACHE -----------------
 with st.expander("🛠️ **Painel de Engenharia de Cache & Invalidação (Demonstração da Defesa Técnica)**"):
     st.markdown("""
     Este painel permite demonstrar ao vivo como a camada de cache e invalidação atua entre o **MongoDB** e o **Redis**:

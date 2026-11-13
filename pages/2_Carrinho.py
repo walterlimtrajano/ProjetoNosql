@@ -73,7 +73,7 @@ else:
     total, total_itens = 0.0, 0
     for pid, qtd in carrinho.items():
         prod, origem = carregar_produto(pid)
-        if prod is None:  # produto removido do catálogo
+        if prod is None:
             rs.remover_item(user_id, pid)
             continue
 
@@ -120,7 +120,6 @@ else:
     with c4:
         st.write("")
         if st.button("🛍️ Finalizar Pedido (Checkout)", type="primary", use_container_width=True):
-            # 1. PERSISTÊNCIA NO MONGODB: grava pedido estruturado
             novo_pedido = {
                 "comprador_email": user_id,
                 "comprador_nome": sessao.get("nome", "Cliente"),
@@ -133,7 +132,6 @@ else:
             res = get_pedidos_collection().insert_one(novo_pedido)
             pedido_id = str(res.inserted_id)
 
-            # 2. ATUALIZAÇÃO DE ESTOQUE NO MONGODB & INVALIDAÇÃO INDIVIDUAL NO REDIS
             produtos_col = get_collection()
             nomes_para_grafo = []
             for item in itens_comprados:
@@ -147,16 +145,12 @@ else:
                     )
                 except Exception:
                     pass
-                # Invalida o cache do produto cujo estoque mudou
                 rs.invalidar_cache_produto(pid)
 
-            # 3. CACHE INVALIDATION NO REDIS: limpa resultados de busca antigos
             invalidados = rs.invalidar_caches_busca()
 
-            # 4. LIMPEZA DO CARRINHO NO REDIS
             rs.limpar_carrinho(user_id)
 
-            # 5. GRAFO NEO4J: registra relacionamentos [:COMPROU]
             try:
                 neo_svc = Neo4jECommerceService()
                 neo_svc.registrar_compra(sessao.get("nome", "Cliente"), nomes_para_grafo)
@@ -175,7 +169,6 @@ else:
             """)
             st.rerun()
 
-# Histórico de Pedidos no MongoDB
 pedidos_usuario = list(get_pedidos_collection().find({"comprador_email": user_id}).sort("data", -1))
 if pedidos_usuario:
     with st.expander(f"📦 Histórico de Pedidos Finalizados no MongoDB ({len(pedidos_usuario)} pedidos)"):

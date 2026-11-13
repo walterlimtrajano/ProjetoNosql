@@ -20,15 +20,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-SESSION_TTL = int(os.getenv("SESSION_TTL", 1800))   # 30 min (renova a cada uso)
-CART_TTL = int(os.getenv("CART_TTL", 86400))        # 24 h
-CACHE_TTL = int(os.getenv("CACHE_TTL", 300))        # 5 min
+SESSION_TTL = int(os.getenv("SESSION_TTL", 1800))
+CART_TTL = int(os.getenv("CART_TTL", 86400))
+CACHE_TTL = int(os.getenv("CACHE_TTL", 300))
 
-# decode_responses=True -> retorna str em vez de bytes
 r = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 
 
-# ---------- nomes das chaves ----------
 def k_user(email): return f"user:{email}"
 def k_session(token): return f"session:{token}"
 def k_cart(user_id): return f"cart:{user_id}"
@@ -38,7 +36,6 @@ def k_cache_busca(hash_query): return f"cache:busca:{hash_query}"
 KEY_MAIS_ACESSADOS = "produtos:mais_acessados"
 
 
-# ---------- usuários e login ----------
 def _hash_senha(senha: str, salt_hex: str) -> str:
     return hashlib.pbkdf2_hmac(
         "sha256", senha.encode(), bytes.fromhex(salt_hex), 100_000
@@ -48,7 +45,6 @@ def _hash_senha(senha: str, salt_hex: str) -> str:
 def registrar_usuario(email: str, nome: str, senha: str) -> bool:
     """Cria o usuário. Retorna False se o e-mail já existe."""
     email = email.strip().lower()
-    # HSETNX é atômico: só um dos concorrentes "ganha" o e-mail
     if not r.hsetnx(k_user(email), "email", email):
         return False
     salt = secrets.token_hex(16)
@@ -95,7 +91,6 @@ def logout(token) -> None:
     r.delete(k_session(token))
 
 
-# ---------- carrinho ----------
 def obter_carrinho(user_id: str) -> dict:
     """{produto_id: quantidade}"""
     return {pid: int(q) for pid, q in r.hgetall(k_cart(user_id)).items()}
@@ -146,7 +141,6 @@ def ttl_carrinho(user_id: str) -> int:
     return r.ttl(k_cart(user_id))
 
 
-# ---------- cache com TTL (cache invalidation) ----------
 def cache_get(nome: str):
     valor = r.get(k_cache(nome))
     return json.loads(valor) if valor else None
@@ -160,7 +154,6 @@ def cache_invalidar(nome: str) -> None:
     r.delete(k_cache(nome))
 
 
-# ---------- cache especializado para catálogo e busca (Cache-Aside + TTL) ----------
 def gerar_hash_busca(termo: str, categoria: str, marca: str, preco_max: float) -> str:
     """Gera chave determinística MD5 para os parâmetros de busca."""
     normalizado = f"{termo.strip().lower()}|{categoria.strip().lower()}|{marca.strip().lower()}|{float(preco_max):.2f}"
@@ -186,7 +179,6 @@ def cache_busca_set(hash_query: str, produtos: list, ttl: int = CACHE_TTL) -> No
     r.set(key, json.dumps(produtos, default=str), ex=ttl)
 
 
-# ---------- cache de produto individual ----------
 def cache_produto_get(produto_id: str):
     """Retorna dados de um produto específico em cache ou None."""
     key = k_cache_produto(produto_id)
@@ -200,7 +192,6 @@ def cache_produto_set(produto_id: str, produto: dict, ttl: int = CACHE_TTL) -> N
     r.set(key, json.dumps(produto, default=str), ex=ttl)
 
 
-# ---------- produtos mais acessados (Sorted Set - ZSET) ----------
 def registrar_acesso_produto(produto_id: str) -> int:
     """
     Incrementa o contador de acessos do produto no Redis (ZSET).
@@ -220,7 +211,6 @@ def obter_produtos_mais_acessados(limite: int = 5) -> list:
     return [(pid, int(score)) for pid, score in res]
 
 
-# ---------- lógicas de Cache Invalidation ----------
 def invalidar_caches_busca() -> int:
     """
     Invalida todas as consultas de catálogo salvas em cache.

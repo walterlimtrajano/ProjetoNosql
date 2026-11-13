@@ -33,7 +33,6 @@ def executar_benchmark(num_amostras: int = 50):
     query_filtro = {"categorias": "Eletrônicos", "ativo": True}
     hash_busca = rs.gerar_hash_busca("", "Eletrônicos", "Todas", 30000.0)
 
-    # 1. Medição MongoDB (Consultas diretas)
     tempos_mongo = []
     print(f"\n1. Executando {num_amostras} consultas diretas ao MongoDB...")
     for _ in range(num_amostras):
@@ -42,7 +41,6 @@ def executar_benchmark(num_amostras: int = 50):
         t1 = time.perf_counter()
         tempos_mongo.append((t1 - t0) * 1000)
 
-    # Prepara o cache no Redis para simular Cache Hit subsequente
     produtos_cache = []
     for p in prods:
         d = dict(p)
@@ -50,7 +48,6 @@ def executar_benchmark(num_amostras: int = 50):
         produtos_cache.append(d)
     rs.cache_busca_set(hash_busca, produtos_cache, ttl=300)
 
-    # 2. Medição Redis (Consultas ao Cache In-Memory)
     tempos_redis = []
     print(f"2. Executando {num_amostras} consultas em memória ao Redis (Cache Hit)...")
     for _ in range(num_amostras):
@@ -59,7 +56,6 @@ def executar_benchmark(num_amostras: int = 50):
         t1 = time.perf_counter()
         tempos_redis.append((t1 - t0) * 1000)
 
-    # Estatísticas
     media_mongo = statistics.mean(tempos_mongo)
     p95_mongo = sorted(tempos_mongo)[int(0.95 * len(tempos_mongo))]
     min_mongo = min(tempos_mongo)

@@ -8,7 +8,7 @@ def render_sidebar_auth():
     token = st.session_state.get("token")
     sessao = rs.validar_sessao(token) if token else None
 
-    if token and not sessao:  # token expirou no Redis
+    if token and not sessao:
         st.session_state.pop("token", None)
         st.sidebar.warning("Sua sessão expirou. Faça login novamente.")
 

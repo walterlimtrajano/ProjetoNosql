@@ -19,11 +19,13 @@ ProjetoNosql/
 ├── redis_service.py          # Sessões, carrinho, Cache com TTL, Invalidation e ZSET
 ├── interface.py              # Autenticação compartilhada na barra lateral
 ├── benchmark_cache.py        # Benchmark de latência MongoDB vs Redis Cache
+├── test_seed_redis.py        # Cria um carrinho de demonstração no Redis
 ├── tests/
 │   └── test_integracao_global.py # Suíte de testes automatizados Polyglot (pytest)
 ├── pages/
 │   ├── 2_Carrinho.py        # Ecrã 2: carrinho ativo e Checkout Polyglot
-│   └── 3_Recomendacoes.py   # Ecrã 3: recomendações Neo4j
+│   ├── 3_Recomendacoes.py   # Ecrã 3: recomendações Neo4j
+│   └── checkout_e_historico.py # Checkout e histórico de pedidos
 ├── docs/                    # Documentação complementar do projeto
 ├── docker-compose.yml        # Serviços locais de Redis, MongoDB e Neo4j
 ├── requirements.txt          # Dependências do projeto Python
@@ -35,6 +37,8 @@ ProjetoNosql/
 ├── .venv                    # Ambiente virtual local (opcional)
 └── __pycache__/             # Arquivos temporários do Python
 ```
+
+As páginas dentro de `pages/` são descobertas automaticamente pelo Streamlit. O módulo `interface.py` é usado para autenticação compartilhada, não para roteamento das páginas.
 
 ---
 
@@ -504,6 +508,9 @@ python neo4j_service.py
 
 # Inicializar usuários de teste no Redis
 python "inicializaçao redis.py"
+
+# Criar o carrinho de demonstração no Redis (após popular o catálogo MongoDB)
+python test_seed_redis.py
 
 # Executar a suíte de Testes Globais Polyglot (pytest)
 python -m pytest -v tests/test_integracao_global.py
