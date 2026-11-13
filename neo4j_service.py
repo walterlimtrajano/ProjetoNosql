@@ -1,4 +1,6 @@
+import math
 import os
+from datetime import date
 
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
@@ -39,6 +41,16 @@ class Neo4jECommerceService:
         MERGE (c3)-[:COMPROU {data: "2026-11-08"}]->(p1)
         MERGE (c3)-[:COMPROU {data: "2026-11-08"}]->(p2)
         MERGE (c3)-[:COMPROU {data: "2026-11-08"}]->(p3)
+        MERGE (c1)-[a1:AVALIOU]->(p1)
+        SET a1.nota = 5, a1.data = "2026-11-08"
+        MERGE (c2)-[a2:AVALIOU]->(p2)
+        SET a2.nota = 4, a2.data = "2026-11-08"
+        MERGE (c3)-[a3:AVALIOU]->(p1)
+        SET a3.nota = 5, a3.data = "2026-11-08"
+        MERGE (c3)-[a4:AVALIOU]->(p2)
+        SET a4.nota = 4, a4.data = "2026-11-08"
+        MERGE (c3)-[a5:AVALIOU]->(p3)
+        SET a5.nota = 5, a5.data = "2026-11-08"
         """
         with self.driver.session(database=self.database) as session:
             session.run(query)
@@ -49,10 +61,9 @@ class Neo4jECommerceService:
         Registra no grafo Neo4j que o cliente finalizou a compra de determinados produtos.
         Cria/atualiza o nó (:Cliente) e o relacionamento [:COMPROU {data: ...}] para cada (:Produto).
         """
-        import datetime
         if not cliente_nome or not produtos_nomes:
             return
-        data_compra = data or datetime.date.today().isoformat()
+        data_compra = data or date.today().isoformat()
         query = """
         MERGE (c:Cliente {nome: $cliente_nome})
         WITH c
@@ -67,6 +78,36 @@ class Neo4jECommerceService:
                 cliente_nome=cliente_nome,
                 produtos_nomes=produtos_nomes,
                 data_compra=data_compra,
+            )
+
+    def registrar_avaliacao(
+        self, cliente_nome: str, produto_nome: str, nota: float, data: str | None = None
+    ) -> None:
+        if not cliente_nome or not cliente_nome.strip():
+            raise ValueError("O nome do cliente é obrigatório.")
+        if not produto_nome or not produto_nome.strip():
+            raise ValueError("O nome do produto é obrigatório.")
+        try:
+            nota = float(nota)
+        except (OverflowError, TypeError, ValueError) as erro:
+            raise ValueError("A nota deve ser um número entre 1 e 5.") from erro
+        if not math.isfinite(nota) or not 1 <= nota <= 5:
+            raise ValueError("A nota deve estar entre 1 e 5.")
+
+        data_avaliacao = data or date.today().isoformat()
+        query = """
+        MERGE (c:Cliente {nome: $cliente_nome})
+        MERGE (p:Produto {nome: $produto_nome})
+        MERGE (c)-[r:AVALIOU]->(p)
+        SET r.nota = $nota, r.data = $data_avaliacao
+        """
+        with self.driver.session(database=self.database) as session:
+            session.run(
+                query,
+                cliente_nome=cliente_nome.strip(),
+                produto_nome=produto_nome.strip(),
+                nota=nota,
+                data_avaliacao=data_avaliacao,
             )
 
     def recomendar_produtos(self, produtos_base, limite=10):

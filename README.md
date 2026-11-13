@@ -19,7 +19,7 @@ ProjetoNosql/
 ├── docker-compose.yml            # Redis, MongoDB e Neo4j locais
 ├── inicializacao_redis.py        # Teste de conexão e criação de usuários de demonstração
 ├── interface.py                  # Autenticação compartilhada na barra lateral
-├── neo4j_service.py              # Consultas Cypher, dados iniciais e recomendações
+├── neo4j_service.py              # Consultas Cypher, compras, avaliações e recomendações
 ├── redis_service.py              # Sessões, carrinho, cache, TTL e ranking
 ├── test_seed_redis.py            # Cria um carrinho de demonstração no Redis
 ├── requirements.txt              # Dependências Python
@@ -27,7 +27,8 @@ ProjetoNosql/
 ├── .env.example                  # Modelo de configuração; copiar para .env
 ├── .gitignore
 ├── docs/
-│   └── grafo_neo4j.png           # Diagrama do grafo
+│   ├── grafo_neo4j.svg           # Modelo completo do grafo
+│   └── grafo_neo4j.png           # Pré-visualização do mesmo modelo
 ├── pages/
 │   ├── 2_Carrinho.py              # Carrinho e checkout Polyglot
 │   ├── 3_Recomendacoes.py         # Recomendações Neo4j
@@ -453,12 +454,13 @@ Estrutura de exemplo:
 
 ```text
 (:Cliente)-[:COMPROU]->(:Produto)
+(:Cliente)-[:AVALIOU {nota: 1..5, data: "AAAA-MM-DD"}]->(:Produto)
 (:Produto)-[:PERTENCE_A]->(:Categoria)
 ```
 
-O algoritmo trabalha com a ideia de: "clientes que compraram os mesmos produtos também costumam comprar outros itens do mesmo catálogo".
+Os dados de demonstração inicializam relações `AVALIOU`; o serviço também permite registrar ou atualizar uma nota de 1 a 5 por cliente e produto. O algoritmo de recomendação continua baseado em compras: clientes que compraram os mesmos produtos também costumam comprar outros itens do catálogo.
 
-O diagrama do grafo está em [docs/grafo_neo4j.png](docs/grafo_neo4j.png).
+Os arquivos [docs/grafo_neo4j.svg](docs/grafo_neo4j.svg) e [docs/grafo_neo4j.png](docs/grafo_neo4j.png) mostram o mesmo modelo; o SVG pode ser ampliado sem perda de qualidade.
 
 ---
 
@@ -508,7 +510,7 @@ A aplicação principal e as páginas Streamlit oferecem:
 
 ## 🧪 Testes e dados de demonstração
 
-A suite `tests/test_integracao_global.py` verifica conectividade, autenticação e sessão Redis, cache, ranking, carrinho, recomendações Neo4j e checkout integrado. É necessário iniciar MongoDB, Redis e Neo4j antes da execução:
+A suite `tests/test_integracao_global.py` verifica conectividade, autenticação e sessão Redis, cache, ranking, carrinho, avaliações e recomendações Neo4j e checkout integrado. É necessário iniciar MongoDB, Redis e Neo4j antes da execução:
 
 ```bash
 python -m pytest -v tests/test_integracao_global.py
@@ -563,6 +565,28 @@ python benchmark_cache.py
 # Rodar a aplicação Streamlit
 streamlit run app_catalogo_mongodb.py
 ```
+
+---
+
+## 🎤 Roteiro de demonstração e defesa
+
+> No PowerShell, se a ativação do ambiente virtual for bloqueada, não altere a política de execução: substitua `python` nos comandos abaixo por `.\venv\Scripts\python.exe` (por exemplo, `.\venv\Scripts\python.exe -m streamlit run app_catalogo_mongodb.py`).
+
+1. **Infraestrutura:** execute `docker compose up -d` e confirme que MongoDB, Redis e Neo4j estão ativos com `docker compose ps`.
+2. **Dados de demonstração:** execute `python neo4j_service.py` e `python inicializacao_redis.py`. Inicie o catálogo com `streamlit run app_catalogo_mongodb.py`; ele cria os produtos de exemplo se a coleção estiver vazia.
+3. **Carrinho:** com a aplicação aberta em `http://localhost:8501`, entre com `ana@loja.com` e a senha de demonstração `123456`. Depois, em outro terminal, execute `python test_seed_redis.py` para inserir dois produtos reais do MongoDB no carrinho Redis.
+4. **Fluxo Polyglot:** demonstre a busca no catálogo e o ranking Redis; no **Carrinho Ativo**, finalize o pedido e explique a gravação no MongoDB, a atualização do estoque, a invalidação do cache Redis e o registro `COMPROU` no Neo4j. Mostre também a página de recomendações e o histórico de pedidos.
+5. **Grafo:** no Neo4j Browser (`http://localhost:7474`), autentique-se com as credenciais configuradas localmente e consulte as avaliações com:
+
+   ```cypher
+   MATCH (c:Cliente)-[r:AVALIOU]->(p:Produto)
+   RETURN c.nome, r.nota, r.data, p.nome
+   ```
+
+6. **Defesa da equipe:** cada integrante deve explicar a contribuição registrada na seção Equipe / Autores. Preparem-se para justificar por que cada banco foi escolhido, como o cache é invalidado e como as recomendações são calculadas.
+7. **Validação:** executem `python -m pytest -v tests/test_integracao_global.py` com os três bancos ativos e expliquem o que os testes de integração verificam.
+
+> A senha mostrada é apenas para a conta local de demonstração. Não use credenciais de demonstração em ambientes reais nem compartilhe o arquivo `.env`.
 
 ---
 

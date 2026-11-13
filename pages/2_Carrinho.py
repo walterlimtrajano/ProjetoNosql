@@ -6,6 +6,7 @@ import streamlit as st
 from bson.objectid import ObjectId
 from dotenv import load_dotenv
 from pymongo import MongoClient
+from pymongo.errors import PyMongoError
 
 import redis_service as rs
 from interface import render_sidebar_auth
@@ -33,22 +34,33 @@ def carregar_produto(pid: str):
     """Cache-aside: tenta o Redis (TTL) e, se não houver, busca no MongoDB."""
     cached = rs.cache_get(f"produto:{pid}")
     if cached:
-        return cached, "Redis (cache)"
-    try:
-        doc = get_collection().find_one({"_id": ObjectId(pid)})
-    except Exception:
-        doc = None
+        doc = cached
+        origem = "Redis (cache)"
+    else:
+        if not ObjectId.is_valid(pid):
+            return None, None
+        try:
+            doc = get_collection().find_one({"_id": ObjectId(pid)})
+        except PyMongoError as erro:
+            st.error(f"Não foi possível carregar o produto no MongoDB: {erro}")
+            st.stop()
+        origem = "MongoDB"
+
     if not doc:
         return None, None
+
+    imagens = doc.get("imagens") or []
     prod = {
         "nome": doc.get("nome", "Sem nome"),
         "marca": doc.get("marca", ""),
         "preco": float(doc.get("preco", 0.0)),
         "estoque": int(doc.get("estoque", 0)),
-        "imagem": (doc.get("imagens") or [None])[0],
+        "imagem": doc.get("imagem") or (imagens[0] if imagens else None),
     }
-    rs.cache_set(f"produto:{pid}", prod)
-    return prod, "MongoDB"
+
+    if origem == "MongoDB":
+        rs.cache_set(f"produto:{pid}", prod)
+    return prod, origem
 
 
 def _atualizar_qtd(user_id, pid):

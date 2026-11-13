@@ -6,6 +6,7 @@ e no fluxo transacional completo de ponta a ponta (Checkout).
 """
 import os
 import sys
+import uuid
 import pytest
 from bson.objectid import ObjectId
 from pymongo import MongoClient
@@ -155,12 +156,54 @@ def test_recomendacoes_neo4j(neo4j_svc):
     """Valida o algoritmo Cypher de recomendação baseada em compras semelhantes."""
     neo4j_svc.popular_dados_iniciais()
 
+    with neo4j_svc.driver.session(database=neo4j_svc.database) as session:
+        avaliacoes = session.run(
+            "MATCH (:Cliente)-[r:AVALIOU]->(:Produto) RETURN count(r) AS total"
+        ).single()
+        assert avaliacoes["total"] >= 1
+
     recs = neo4j_svc.recomendar_produtos(["Smartphone Galaxy S24 Ultra"])
     assert isinstance(recs, list)
     assert len(recs) > 0
 
     nomes_recomendados = [r["produto"] for r in recs]
     assert "iPad Pro 12.9'' M2" in nomes_recomendados or "Notebook MacBook Pro 16 M3 Max" in nomes_recomendados
+
+
+@pytest.mark.parametrize("nota", [0, 6, float("nan"), float("inf"), "inválida"])
+def test_rejeitar_nota_invalida_neo4j(neo4j_svc, nota):
+    cliente = f"Cliente Avaliação {uuid.uuid4().hex}"
+    produto = f"Produto Avaliação {uuid.uuid4().hex}"
+
+    with pytest.raises(ValueError, match="entre 1 e 5"):
+        neo4j_svc.registrar_avaliacao(cliente, produto, nota)
+
+
+def test_registrar_avaliacao_neo4j(neo4j_svc):
+    cliente = f"Cliente Avaliação {uuid.uuid4().hex}"
+    produto = f"Produto Avaliação {uuid.uuid4().hex}"
+    try:
+        neo4j_svc.registrar_avaliacao(
+            cliente, produto, 4.5, data="2026-01-15"
+        )
+        with neo4j_svc.driver.session(database=neo4j_svc.database) as session:
+            avaliacao = session.run(
+                """
+                MATCH (:Cliente {nome: $cliente})-[r:AVALIOU]->
+                      (:Produto {nome: $produto})
+                RETURN r.nota AS nota, r.data AS data
+                """,
+                cliente=cliente,
+                produto=produto,
+            ).single()
+            assert avaliacao["nota"] == 4.5
+            assert avaliacao["data"] == "2026-01-15"
+    finally:
+        with neo4j_svc.driver.session(database=neo4j_svc.database) as session:
+            session.run(
+                "MATCH (n) WHERE n.nome IN $nomes DETACH DELETE n",
+                nomes=[cliente, produto],
+            )
 
 
 def test_fluxo_checkout_polyglot(mongo_db, neo4j_svc):

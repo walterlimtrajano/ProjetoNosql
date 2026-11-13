@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="420" viewBox="0 0 1000 420" role="img" aria-labelledby="title description">
+  <title id="title">Modelo do grafo Neo4j do e-commerce</title>
+  <desc id="description">Cliente compra e avalia produtos; produtos pertencem a categorias.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#758195"/>
+    </marker>
+    <style>
+      .node { stroke: #ffffff; stroke-width: 3; }
+      .label { font: 700 20px Arial, sans-serif; fill: #202938; text-anchor: middle; }
+      .detail { font: 14px Arial, sans-serif; fill: #364152; text-anchor: middle; }
+      .edge { fill: none; stroke: #758195; stroke-width: 2.5; marker-end: url(#arrow); }
+      .edge-label { font: 700 14px Arial, sans-serif; fill: #4b5563; text-anchor: middle; }
+    </style>
+  </defs>
+  <rect width="1000" height="420" fill="#f8fafc"/>
+  <path class="edge" d="M 270 170 C 320 105, 375 105, 430 170"/>
+  <path class="edge" d="M 270 250 C 320 315, 375 315, 430 250"/>
+  <path class="edge" d="M 620 210 L 760 210"/>
+  <text class="edge-label" x="350" y="115">COMPROU {data}</text>
+  <text class="edge-label" x="350" y="320">AVALIOU {nota, data}</text>
+  <text class="edge-label" x="690" y="195">PERTENCE_A</text>
+  <rect class="node" x="70" y="155" width="200" height="110" rx="28" fill="#f9a8c4"/>
+  <text class="label" x="170" y="205">Cliente</text>
+  <text class="detail" x="170" y="232">nome</text>
+  <rect class="node" x="430" y="155" width="190" height="110" rx="28" fill="#fdba74"/>
+  <text class="label" x="525" y="205">Produto</text>
+  <text class="detail" x="525" y="232">nome, preço</text>
+  <rect class="node" x="760" y="155" width="190" height="110" rx="28" fill="#c7d2fe"/>
+  <text class="label" x="855" y="205">Categoria</text>
+  <text class="detail" x="855" y="232">nome</text>
+</svg>
