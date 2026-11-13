@@ -14,31 +14,29 @@
 
 ```text
 ProjetoNosql/
-├── app_catalogo_mongodb.py   # Aplicação principal em Streamlit com Cache-Aside e Ranking
-├── neo4j_service.py          # Serviço Neo4j, consultas Cypher e registro de compras
-├── redis_service.py          # Sessões, carrinho, Cache com TTL, Invalidation e ZSET
-├── interface.py              # Autenticação compartilhada na barra lateral
-├── benchmark_cache.py        # Benchmark de latência MongoDB vs Redis Cache
-├── test_seed_redis.py        # Cria um carrinho de demonstração no Redis
-├── tests/
-│   └── test_integracao_global.py # Suíte de testes automatizados Polyglot (pytest)
+├── app_catalogo_mongodb.py       # Catálogo Streamlit, filtros, cache e ranking
+├── benchmark_cache.py            # Comparação de latência MongoDB vs Redis
+├── docker-compose.yml            # Redis, MongoDB e Neo4j locais
+├── inicializacao_redis.py        # Teste de conexão e criação de usuários de demonstração
+├── interface.py                  # Autenticação compartilhada na barra lateral
+├── neo4j_service.py              # Consultas Cypher, dados iniciais e recomendações
+├── redis_service.py              # Sessões, carrinho, cache, TTL e ranking
+├── test_seed_redis.py            # Cria um carrinho de demonstração no Redis
+├── requirements.txt              # Dependências Python
+├── README.md
+├── .env.example                  # Modelo de configuração; copiar para .env
+├── .gitignore
+├── docs/
+│   └── grafo_neo4j.png           # Diagrama do grafo
 ├── pages/
-│   ├── 2_Carrinho.py        # Ecrã 2: carrinho ativo e Checkout Polyglot
-│   ├── 3_Recomendacoes.py   # Ecrã 3: recomendações Neo4j
-│   └── checkout_e_historico.py # Checkout e histórico de pedidos
-├── docs/                    # Documentação complementar do projeto
-├── docker-compose.yml        # Serviços locais de Redis, MongoDB e Neo4j
-├── requirements.txt          # Dependências do projeto Python
-├── .env                     # Variáveis de ambiente locais (não commitado)
-├── .env.example             # Exemplo de configuração das variáveis de ambiente
-├── .gitignore               # Arquivos ignorados pelo Git
-├── README.md                # Documentação do projeto
-├── inicializaçao redis.py   # Script auxiliar para inicialização do Redis
-├── .venv                    # Ambiente virtual local (opcional)
-└── __pycache__/             # Arquivos temporários do Python
+│   ├── 2_Carrinho.py              # Carrinho e checkout Polyglot
+│   ├── 3_Recomendacoes.py         # Recomendações Neo4j
+│   └── checkout_e_historico.py    # Checkout e histórico de pedidos
+└── tests/
+    └── test_integracao_global.py  # Testes de integração dos três bancos
 ```
 
-As páginas dentro de `pages/` são descobertas automaticamente pelo Streamlit. O módulo `interface.py` é usado para autenticação compartilhada, não para roteamento das páginas.
+O arquivo `.env` contém configurações locais e não deve ser versionado. Pastas de ambiente virtual e cache do Python também são geradas localmente e não fazem parte do código-fonte. O Streamlit descobre automaticamente as páginas em `pages/`; `interface.py` fornece autenticação compartilhada, não roteamento.
 
 ---
 
@@ -117,6 +115,9 @@ STREAMLIT_SERVER_ADDRESS=localhost
 
 > Não compartilhe nem versionie o arquivo `.env`.
 
+O Redis usa `REDIS_URL=redis://localhost:6379/0` por padrão. Os TTLs também podem ser ajustados por ambiente: `SESSION_TTL` (padrão 1800 segundos), `CART_TTL` (86400) e `CACHE_TTL` (300).
+Defina `NEO4J_PASSWORD` no `.env` antes de iniciar o Docker Compose; o serviço Neo4j não inicia sem essa variável.
+
 ### 5. Subir os serviços com Docker (opcional, mas recomendado)
 No diretório do projeto:
 
@@ -129,14 +130,22 @@ Isso inicia:
 - **MongoDB** na porta `27017`
 - **Neo4j** nas portas `7474` e `7687`
 
-### 6. Inicializar o grafo e executar a aplicação
-Com o Neo4j disponível e as variáveis configuradas, crie os dados de exemplo do grafo:
+### 6. Inicializar os dados de demonstração
+Com os serviços disponíveis e as variáveis configuradas, crie os usuários de teste no Redis:
+
+```bash
+python inicializacao_redis.py
+```
+
+O script tenta criar os utilizadores `ana@loja.com`, `vinicius@loja.com` e `carlos@loja.com`. Quando criados, usam a senha de demonstração `123456`; contas que já existam não têm a senha alterada. Não use essas credenciais em ambientes reais.
+
+Inicialize também os dados do grafo no Neo4j:
 
 ```bash
 python neo4j_service.py
 ```
 
-Em seguida, inicie o Streamlit:
+Inicie o Streamlit para popular o catálogo MongoDB quando a coleção ainda estiver vazia:
 
 ```bash
 streamlit run app_catalogo_mongodb.py
@@ -148,13 +157,13 @@ A aplicação abrirá automaticamente no navegador em:
 http://localhost:8501
 ```
 
-Use o menu de páginas do Streamlit e abra **3 Recomendações**. A tela usa os produtos no carrinho Redis como contexto inicial; também permite selecionar outros produtos do catálogo.
+O menu do Streamlit inclui automaticamente as páginas de carrinho, recomendações e checkout/histórico. Faça login com uma conta de demonstração para usar as páginas protegidas. Para criar um carrinho de teste, depois de o catálogo estar populado e de a conta ter sido criada, execute `python test_seed_redis.py` num terminal separado. Por padrão, o script prepara o carrinho de `ana@loja.com`; defina `SEED_USER_ID` para selecionar outro utilizador existente.
 
 ---
 
 ## 🍃 Modelagem de Dados no MongoDB
 
-A coleção `produtos` na base de dados `ecommerce_db` armazena documentos JSON com esquemas flexíveis:
+A coleção `produtos` na base de dados `ecommerce_db` armazena documentos JSON com esquemas flexíveis. Os objetos seguintes são exemplos de documentos independentes, não um único arquivo JSON:
 
 ```json
 {
@@ -404,6 +413,8 @@ collection.create_index([("nome", TEXT), ("descricao", TEXT), ("marca", TEXT)])
 
 Esse índice é usado para pesquisas rápidas em campos relevantes do catálogo.
 
+O catálogo de demonstração é inserido automaticamente por `app_catalogo_mongodb.py` quando a coleção de produtos está vazia. A configuração pode ser alterada com `MONGO_URI`, `DB_NAME` e `COLLECTION_NAME`.
+
 ---
 
 ## 🧠 Modelagem de Dados no Redis & Camada de Cache
@@ -447,11 +458,13 @@ Estrutura de exemplo:
 
 O algoritmo trabalha com a ideia de: "clientes que compraram os mesmos produtos também costumam comprar outros itens do mesmo catálogo".
 
+O diagrama do grafo está em [docs/grafo_neo4j.png](docs/grafo_neo4j.png).
+
 ---
 
 ## 🖥️ Funcionalidades da Interface
 
-A aplicação principal em Streamlit oferece:
+A aplicação principal e as páginas Streamlit oferecem:
 
 - filtro por categoria
 - filtro por marca
@@ -459,7 +472,12 @@ A aplicação principal em Streamlit oferece:
 - busca textual por nome, marca ou descrição
 - visualização de imagens e detalhes do produto
 - botão para adicionar ao carrinho
-- acesso às páginas de carrinho e recomendações
+- autenticação, registo e sessão compartilhada por meio do Redis
+- carrinho com quantidade limitada pelo estoque
+- checkout integrado: grava o pedido no MongoDB, atualiza o estoque, invalida o cache e registra a compra no Neo4j
+- histórico de pedidos do utilizador
+- página de recomendações Neo4j, com seleção de produtos e clientes semelhantes
+- página dedicada `checkout_e_historico.py`, que consulta o carrinho Redis, grava o pedido e apresenta o histórico MongoDB
 
 ---
 
@@ -474,11 +492,35 @@ A aplicação principal em Streamlit oferece:
 - O login e a sessão são gerenciados no Redis
 - O carrinho do usuário é persistido com TTL
 - A aplicação usa cache para evitar processamento redundante
+- `2_Carrinho.py` permite alterar quantidades, remover itens e concluir o fluxo Polyglot com atualização de estoque, invalidação de cache e registro no Neo4j
+
+### Checkout e histórico
+- `checkout_e_historico.py` lê o carrinho do utilizador autenticado e os detalhes atuais dos produtos no MongoDB
+- O pedido é salvo na coleção `pedidos` e o carrinho Redis é limpo após a gravação
+- O histórico apresenta pedidos guardados para o utilizador; a página também reconhece os campos antigos `cliente_id`, `data_pedido` e `valor_total`
 
 ### Recomendações com Neo4j
 - A página de recomendações considera os produtos selecionados e os itens do carrinho
 - Compara clientes com histórico semelhante
 - Retorna produtos mais relevantes, ordenados por afinidade
+
+---
+
+## 🧪 Testes e dados de demonstração
+
+A suite `tests/test_integracao_global.py` verifica conectividade, autenticação e sessão Redis, cache, ranking, carrinho, recomendações Neo4j e checkout integrado. É necessário iniciar MongoDB, Redis e Neo4j antes da execução:
+
+```bash
+python -m pytest -v tests/test_integracao_global.py
+```
+
+O script `test_seed_redis.py` é auxiliar para criar um carrinho de demonstração para um utilizador já registado. Ele procura no MongoDB os produtos “Smartphone Galaxy S24 Ultra” e “Teclado Mecânico Logitech G Pro X TKL” e grava no Redis os seus IDs reais e quantidade. O script não cria utilizadores nem produtos.
+
+O `benchmark_cache.py` compara o tempo de consultas diretas ao MongoDB com consultas atendidas pelo cache Redis:
+
+```bash
+python benchmark_cache.py
+```
 
 ---
 
@@ -507,7 +549,7 @@ docker compose up -d
 python neo4j_service.py
 
 # Inicializar usuários de teste no Redis
-python "inicializaçao redis.py"
+python inicializacao_redis.py
 
 # Criar o carrinho de demonstração no Redis (após popular o catálogo MongoDB)
 python test_seed_redis.py
@@ -526,8 +568,11 @@ streamlit run app_catalogo_mongodb.py
 
 ## 👥 Equipe / Autores
 
-- **Walterlim Trajano** — *Modelação MongoDB & Ecrã do Catálogo*
+- **Walterlim Trajano** — *Modelação MongoDB, Ecrã do Catálogo, Checkout e Histórico de Pedidos em Redis/MongoDB e script para criar carrinho de demonstração*
 - Repositório: [walterlimtrajano/ProjetoNosql](https://github.com/walterlimtrajano/ProjetoNosql)
+
+- **Marcos Vinicius** — *Integração inicial do Redis, autenticação e sessões, inicialização de utilizadores e implementação do ecrã Carrinho Ativo*
+- Repositório: [marcosvinicius151/ProjetoNosql](https://github.com/walterlimtrajano/ProjetoNosql)
 
 - **Lucas Holanda** — *Modelação Neo4j, Scripts Cypher & Documentação em Grafo*
 - Repositório: [Holandaz1/ProjetoNosql](https://github.com/walterlimtrajano/ProjetoNosql)
